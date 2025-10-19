@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RSI Сигналы</title>
-  <meta name="description" content="Анализ EUR/USD по RSI с графиком">
+  <title>RSI + График</title>
+  <meta name="description" content="Анализ EUR/USD с графиком и RSI-сигналами">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -56,6 +56,7 @@
       border-radius: 12px;
       font-weight: bold;
     }
+    button:active { background: #0d47a1; }
     .loading { text-align: center; padding: 20px; color: #666; }
     .error { color: #d32f2f; text-align: center; padding: 16px; }
   </style>
@@ -75,25 +76,27 @@
 
   <button onclick="loadData()">Обновить</button>
 
+  <!-- Библиотека графиков от TradingView -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
   <script>
-    // 🔴 ОБЯЗАТЕЛЬНО ЗАМЕНИТЕ ЭТОТ URL НА ВАШ!
-    const SERVER_URL = "https://rsi-signal-abc1.onrender.com"; 
+    // 🔴 ОБЯЗАТЕЛЬНО ЗАМЕНИТЕ НА ВАШ RENDER URL!
+    const SERVER_URL = "https://ваш-сервис.onrender.com";
 
-    let series;
+    let chart = null;
+    let series = null;
 
     function initChart() {
       const container = document.getElementById('chart');
       container.innerHTML = '';
-      const chart = LightweightCharts.createChart(container, {
+      chart = LightweightCharts.createChart(container, {
         width: container.clientWidth,
         height: 300,
         layout: { backgroundColor: '#ffffff', textColor: '#333' },
         grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         priceScale: { borderColor: '#ccc' },
-        timeScale: { borderColor: '#ccc', timeVisible: true }
+        timeScale: { borderColor: '#ccc', timeVisible: true, secondsVisible: false }
       });
       series = chart.addCandlestickSeries({
         upColor: '#26a69a',
@@ -109,6 +112,7 @@
       signalEl.innerHTML = '<div class="loading">Загрузка...</div>';
 
       try {
+        // Получаем сигнал
         const signalRes = await fetch(`${SERVER_URL}/signal?pair=EUR/USD&interval=5min`);
         const signalData = await signalRes.json();
         if (signalData.error) throw new Error(signalData.error);
@@ -122,32 +126,40 @@
           <div class="signal-box ${cls}">Сигнал: ${signalData.signal}</div>
         `;
 
+        // Получаем историю для графика
         const histRes = await fetch(`${SERVER_URL}/history?pair=EUR/USD&interval=5min`);
         const histData = await histRes.json();
         if (histData.error) throw new Error(histData.error);
 
+        // Преобразуем дату в правильный формат
         const chartData = histData.values.map(bar => {
-  // Преобразуем дату в правильный формат: YYYY-MM-DD HH:mm:ss → YYYY-MM-DDTHH:mm:ss
-  const dateTimeStr = bar.datetime.replace(' ', 'T') + 'Z'; // добавляем Z для UTC
-  return {
-    time: Math.floor(new Date(dateTimeStr).getTime() / 1000),
-    open: parseFloat(bar.open),
-    high: parseFloat(bar.high),
-    low: parseFloat(bar.low),
-    close: parseFloat(bar.close)
-  };
-}).reverse();
+          const dateTimeStr = bar.datetime.replace(' ', 'T') + 'Z';
+          return {
+            time: Math.floor(new Date(dateTimeStr).getTime() / 1000),
+            open: parseFloat(bar.open),
+            high: parseFloat(bar.high),
+            low: parseFloat(bar.low),
+            close: parseFloat(bar.close)
+          };
+        }).reverse();
 
-        if (!series) initChart();
+        // Инициализируем график один раз
+        if (!series) {
+          initChart();
+        }
         series.setData(chartData);
 
       } catch (err) {
         signalEl.innerHTML = `<div class="error">❌ ${err.message}</div>`;
+        console.error(err);
       }
     }
 
     // Загружаем при старте
     loadData();
+
+    // Автообновление каждые 5 минут
+    setInterval(loadData, 300000);
   </script>
 </body>
 </html>
