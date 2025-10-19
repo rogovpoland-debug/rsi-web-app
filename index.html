@@ -33,6 +33,10 @@
     #chart {
       height: 300px;
       width: 100%;
+      min-height: 300px;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
     }
     .signal-box {
       padding: 14px;
@@ -86,9 +90,11 @@
 
     function initChart() {
       const container = document.getElementById('chart');
+      if (!container) return;
+
       container.innerHTML = '';
       chart = LightweightCharts.createChart(container, {
-        width: container.clientWidth,
+        width: container.clientWidth || 300,
         height: 300,
         layout: { backgroundColor: '#ffffff', textColor: '#333' },
         grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
@@ -96,6 +102,7 @@
         priceScale: { borderColor: '#ccc' },
         timeScale: { borderColor: '#ccc', timeVisible: true, secondsVisible: false }
       });
+
       series = chart.addCandlestickSeries({
         upColor: '#26a69a',
         downColor: '#ef5350',
@@ -103,6 +110,13 @@
         wickUpColor: '#26a69a',
         wickDownColor: '#ef5350'
       });
+
+      // Принудительно перерисовываем график
+      setTimeout(() => {
+        if (chart && series) {
+          chart.timeScale().fitContent();
+        }
+      }, 100);
     }
 
     async function loadData() {
@@ -110,10 +124,6 @@
       signalEl.innerHTML = '<div class="loading">Загрузка...</div>';
 
       try {
-        // Проверяем подключение
-        console.log("Попытка загрузить данные с:", SERVER_URL);
-
-        // Получаем сигнал
         const signalRes = await fetch(`${SERVER_URL}/signal?pair=EUR/USD&interval=5min`);
         if (!signalRes.ok) throw new Error(`HTTP ${signalRes.status}: ${signalRes.statusText}`);
         const signalData = await signalRes.json();
@@ -128,13 +138,11 @@
           <div class="signal-box ${cls}">Сигнал: ${signalData.signal}</div>
         `;
 
-        // Получаем историю
         const histRes = await fetch(`${SERVER_URL}/history?pair=EUR/USD&interval=5min`);
         if (!histRes.ok) throw new Error(`HTTP ${histRes.status}: ${histRes.statusText}`);
         const histData = await histRes.json();
         if (histData.error) throw new Error(histData.error);
 
-        // Преобразуем дату
         const chartData = histData.values.map(bar => {
           const dateTimeStr = bar.datetime.replace(' ', 'T') + 'Z';
           return {
