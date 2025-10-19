@@ -126,13 +126,17 @@
         const histData = await histRes.json();
         if (histData.error) throw new Error(histData.error);
 
-        const chartData = histData.values.map(bar => ({
-          time: Math.floor(new Date(bar.datetime).getTime() / 1000),
-          open: parseFloat(bar.open),
-          high: parseFloat(bar.high),
-          low: parseFloat(bar.low),
-          close: parseFloat(bar.close)
-        })).reverse();
+        const chartData = histData.values.map(bar => {
+  // Преобразуем дату в правильный формат: YYYY-MM-DD HH:mm:ss → YYYY-MM-DDTHH:mm:ss
+  const dateTimeStr = bar.datetime.replace(' ', 'T') + 'Z'; // добавляем Z для UTC
+  return {
+    time: Math.floor(new Date(dateTimeStr).getTime() / 1000),
+    open: parseFloat(bar.open),
+    high: parseFloat(bar.high),
+    low: parseFloat(bar.low),
+    close: parseFloat(bar.close)
+  };
+}).reverse();
 
         if (!series) initChart();
         series.setData(chartData);
