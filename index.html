@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RSI + Цена</title>
+  <title>RSI Сигналы</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -29,6 +29,14 @@
       padding: 16px;
       margin: 12px 0;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .pair-selector {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
     }
     .price-line {
       font-family: monospace;
@@ -68,8 +76,18 @@
 </head>
 <body>
   <header>
-    <h1>📈 EUR/USD + RSI</h1>
+    <h1>📈 RSI Сигналы</h1>
   </header>
+
+  <div class="card">
+    <select id="pairSelector" class="pair-selector" onchange="loadData()">
+      <option value="EUR/USD">EUR/USD</option>
+      <option value="GBP/USD">GBP/USD</option>
+      <option value="USD/JPY">USD/JPY</option>
+      <option value="AUD/USD">AUD/USD</option>
+      <option value="USD/CAD">USD/CAD</option>
+    </select>
+  </div>
 
   <div class="card">
     <div id="priceLine">Загрузка цен...</div>
@@ -82,18 +100,20 @@
   <button onclick="loadData()">Обновить</button>
 
   <script>
-    // 🔴 ЗАМЕНИТЕ НА ВАШ URL!
+    // 🔴 ЗАМЕНИТЕ НА ВАШ RENDER URL!
     const SERVER_URL = "https://rsi-signal.onrender.com";
 
     async function loadData() {
+      const pair = document.getElementById('pairSelector').value;
       const signalEl = document.getElementById('signal');
       const priceEl = document.getElementById('priceLine');
+      
       signalEl.innerHTML = '<div class="loading">Загрузка...</div>';
       priceEl.innerHTML = '<div class="loading">Загрузка цен...</div>';
 
       try {
         // Получаем сигнал
-        const signalRes = await fetch(`${SERVER_URL}/signal?pair=EUR/USD&interval=5min`);
+        const signalRes = await fetch(`${SERVER_URL}/signal?pair=${encodeURIComponent(pair)}&interval=5min`);
         if (!signalRes.ok) throw new Error(`HTTP ${signalRes.status}: ${signalRes.statusText}`);
         const signalData = await signalRes.json();
         if (signalData.error) throw new Error(signalData.error);
@@ -102,13 +122,14 @@
         if (signalData.signal === "BUY") cls = "buy";
         if (signalData.signal === "SELL") cls = "sell";
         signalEl.innerHTML = `
+          <div>Пара: <strong>${signalData.pair}</strong></div>
           <div>Цена: <strong>${signalData.price}</strong></div>
           <div>RSI: <strong>${signalData.rsi}</strong></div>
           <div class="signal-box ${cls}">Сигнал: ${signalData.signal}</div>
         `;
 
         // Получаем историю
-        const histRes = await fetch(`${SERVER_URL}/history?pair=EUR/USD&interval=5min`);
+        const histRes = await fetch(`${SERVER_URL}/history?pair=${encodeURIComponent(pair)}&interval=5min`);
         if (!histRes.ok) throw new Error(`HTTP ${histRes.status}: ${histRes.statusText}`);
         const histData = await histRes.json();
         if (histData.error) throw new Error(histData.error);
