@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RSI + График</title>
-  <meta name="description" content="Анализ EUR/USD с графиком и RSI-сигналами">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -76,13 +75,9 @@
 
   <button onclick="loadData()">Обновить</button>
 
-  <!-- Библиотека графиков от TradingView -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
   <script>
-    // 🔴 ОБЯЗАТЕЛЬНО ЗАМЕНИТЕ НА ВАШ RENDER URL!
-    const SERVER_URL = "https://rsi-signal.onrender.com";
-
     let chart = null;
     let series = null;
 
@@ -111,48 +106,37 @@
       const signalEl = document.getElementById('signal');
       signalEl.innerHTML = '<div class="loading">Загрузка...</div>';
 
-      try {
-        // Получаем сигнал
-        const signalRes = await fetch(`${SERVER_URL}/signal?pair=EUR/USD&interval=5min`);
-        const signalData = await signalRes.json();
-        if (signalData.error) throw new Error(signalData.error);
+      // Тестовые данные
+      const testData = {
+        price: 1.0842,
+        rsi: 28.64,
+        signal: "BUY",
+        timestamp: "2025-10-20 12:35:00"
+      };
 
-        let cls = "neutral";
-        if (signalData.signal === "BUY") cls = "buy";
-        if (signalData.signal === "SELL") cls = "sell";
-        signalEl.innerHTML = `
-          <div>Цена: <strong>${signalData.price}</strong></div>
-          <div>RSI: <strong>${signalData.rsi}</strong></div>
-          <div class="signal-box ${cls}">Сигнал: ${signalData.signal}</div>
-        `;
+      let cls = "neutral";
+      if (testData.signal === "BUY") cls = "buy";
+      if (testData.signal === "SELL") cls = "sell";
 
-        // Получаем историю для графика
-        const histRes = await fetch(`${SERVER_URL}/history?pair=EUR/USD&interval=5min`);
-        const histData = await histRes.json();
-        if (histData.error) throw new Error(histData.error);
+      signalEl.innerHTML = `
+        <div>Цена: <strong>${testData.price}</strong></div>
+        <div>RSI: <strong>${testData.rsi}</strong></div>
+        <div class="signal-box ${cls}">Сигнал: ${testData.signal}</div>
+      `;
 
-        // Преобразуем дату в правильный формат
-        const chartData = histData.values.map(bar => {
-          const dateTimeStr = bar.datetime.replace(' ', 'T') + 'Z';
-          return {
-            time: Math.floor(new Date(dateTimeStr).getTime() / 1000),
-            open: parseFloat(bar.open),
-            high: parseFloat(bar.high),
-            low: parseFloat(bar.low),
-            close: parseFloat(bar.close)
-          };
-        }).reverse();
+      // Тестовые свечи
+      const chartData = [
+        { time: 1729440000, open: 1.0830, high: 1.0850, low: 1.0820, close: 1.0840 },
+        { time: 1729440300, open: 1.0840, high: 1.0860, low: 1.0835, close: 1.0855 },
+        { time: 1729440600, open: 1.0855, high: 1.0870, low: 1.0845, close: 1.0865 },
+        { time: 1729440900, open: 1.0865, high: 1.0880, low: 1.0850, close: 1.0870 },
+        { time: 1729441200, open: 1.0870, high: 1.0890, low: 1.0860, close: 1.0880 }
+      ];
 
-        // Инициализируем график один раз
-        if (!series) {
-          initChart();
-        }
-        series.setData(chartData);
-
-      } catch (err) {
-        signalEl.innerHTML = `<div class="error">❌ ${err.message}</div>`;
-        console.error(err);
+      if (!series) {
+        initChart();
       }
+      series.setData(chartData);
     }
 
     // Загружаем при старте
