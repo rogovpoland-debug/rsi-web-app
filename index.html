@@ -33,7 +33,6 @@
     #chart {
       height: 300px;
       width: 100%;
-      min-height: 300px;
       background: #fff;
       border-radius: 12px;
       overflow: hidden;
@@ -79,51 +78,20 @@
 
   <button onclick="loadData()">Обновить</button>
 
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <!-- Библиотека для простого графика -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.time.min.js"></script>
 
   <script>
     // 🔴 ЗАМЕНИТЕ НА ВАШ URL!
     const SERVER_URL = "https://rsi-signal.onrender.com";
-
-    let chart = null;
-    let series = null;
-
-    function initChart() {
-      const container = document.getElementById('chart');
-      if (!container) return;
-
-      container.innerHTML = '';
-      chart = LightweightCharts.createChart(container, {
-        width: container.clientWidth || 300,
-        height: 300,
-        layout: { backgroundColor: '#ffffff', textColor: '#333' },
-        grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
-        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-        priceScale: { borderColor: '#ccc' },
-        timeScale: { borderColor: '#ccc', timeVisible: true, secondsVisible: false }
-      });
-
-      series = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderVisible: false,
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350'
-      });
-
-      // Принудительно перерисовываем график
-      setTimeout(() => {
-        if (chart && series) {
-          chart.timeScale().fitContent();
-        }
-      }, 100);
-    }
 
     async function loadData() {
       const signalEl = document.getElementById('signal');
       signalEl.innerHTML = '<div class="loading">Загрузка...</div>';
 
       try {
+        // Получаем сигнал
         const signalRes = await fetch(`${SERVER_URL}/signal?pair=EUR/USD&interval=5min`);
         if (!signalRes.ok) throw new Error(`HTTP ${signalRes.status}: ${signalRes.statusText}`);
         const signalData = await signalRes.json();
@@ -138,26 +106,33 @@
           <div class="signal-box ${cls}">Сигнал: ${signalData.signal}</div>
         `;
 
+        // Получаем историю
         const histRes = await fetch(`${SERVER_URL}/history?pair=EUR/USD&interval=5min`);
         if (!histRes.ok) throw new Error(`HTTP ${histRes.status}: ${histRes.statusText}`);
         const histData = await histRes.json();
         if (histData.error) throw new Error(histData.error);
 
-        const chartData = histData.values.map(bar => {
-          const dateTimeStr = bar.datetime.replace(' ', 'T') + 'Z';
-          return {
-            time: Math.floor(new Date(dateTimeStr).getTime() / 1000),
-            open: parseFloat(bar.open),
-            high: parseFloat(bar.high),
-            low: parseFloat(bar.low),
-            close: parseFloat(bar.close)
-          };
-        }).reverse();
+        // Преобразуем данные для графика
+        const chartData = histData.values.map(bar => [
+          new Date(bar.datetime).getTime(),
+          parseFloat(bar.close)
+        ]).reverse();
 
-        if (!series) {
-          initChart();
-        }
-        series.setData(chartData);
+        // Создаём график
+        const container = document.getElementById('chart');
+        container.innerHTML = '';
+
+        $.plot(container, [{
+          data: chartData,
+          lines: { show: true, lineWidth: 2 },
+          points: { show: false },
+          color: '#1a73e8'
+        }], {
+          xaxis: { mode: "time", timeformat: "%H:%M" },
+          yaxis: { min: Math.min(...chartData.map(d => d[1])) - 0.001, max: Math.max(...chartData.map(d => d[1])) + 0.001 },
+          grid: { hoverable: true, clickable: true, backgroundColor: "#fff" },
+          legend: { show: false }
+        });
 
       } catch (err) {
         signalEl.innerHTML = `<div class="error">❌ Ошибка: ${err.message}</div>`;
