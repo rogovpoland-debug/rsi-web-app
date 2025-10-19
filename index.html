@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RSI Сигналы</title>
+  <title>RSI + График</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -37,21 +37,14 @@
       border: 1px solid #ccc;
       border-radius: 8px;
       font-size: 16px;
-      appearance: none;
-      -webkit-appearance: none;
-      background: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23757575'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e") no-repeat right 0.75rem center/16px 12px;
-      background-color: #fff;
-      padding-right: 2.5rem;
     }
-    .price-line {
-      font-family: monospace;
-      font-size: 16px;
-      padding: 12px;
-      background: #f0f0f0;
-      border-radius: 8px;
+    #chart {
+      height: 300px;
+      width: 100%;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
       margin: 10px 0;
-      overflow-x: auto;
-      white-space: nowrap;
     }
     .signal-box {
       padding: 14px;
@@ -81,7 +74,7 @@
 </head>
 <body>
   <header>
-    <h1>📈 RSI Сигналы</h1>
+    <h1>📈 RSI + График</h1>
   </header>
 
   <div class="card">
@@ -89,13 +82,11 @@
       <option value="EUR/USD">EUR/USD</option>
       <option value="GBP/USD">GBP/USD</option>
       <option value="USD/JPY">USD/JPY</option>
-      <option value="AUD/USD">AUD/USD</option>
-      <option value="USD/CAD">USD/CAD</option>
     </select>
   </div>
 
   <div class="card">
-    <div id="priceLine">Загрузка цен...</div>
+    <div id="chart">Загрузка графика...</div>
   </div>
 
   <div class="card">
@@ -104,25 +95,62 @@
 
   <button onclick="loadData()">Обновить</button>
 
+  <!-- Библиотека графиков -->
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
   <script>
     // 🔴 ЗАМЕНИТЕ НА ВАШ RENDER URL!
     const SERVER_URL = "https://rsi-signal.onrender.com";
 
-    // Обработчик выбора пары
-    document.getElementById('pairSelector').addEventListener('change', loadData);
+    let chart = null;
+    let series = null;
+
+    function initChart() {
+      const container = document.getElementById('chart');
+      if (!container) return;
+
+      container.innerHTML = '';
+      chart = LightweightCharts.createChart(container, {
+        width: container.clientWidth || 300,
+        height: 300,
+        layout: { backgroundColor: '#ffffff', textColor: '#333' },
+        grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        priceScale: { borderColor: '#ccc' },
+        timeScale: { borderColor: '#ccc', timeVisible: true, secondsVisible: false }
+      });
+
+      series = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderVisible: false,
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350'
+      });
+    }
+
+    async function fetchWithRetry(url, retries = 2) {
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const response = await fetch(url);
+          if (response.ok) return response;
+          if (i === retries) throw new Error(`HTTP ${response.status}`);
+          await new Promise(r => setTimeout(r, 1000));
+        } catch (err) {
+          if (i === retries) throw err;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    }
 
     async function loadData() {
       const pair = document.getElementById('pairSelector').value;
       const signalEl = document.getElementById('signal');
-      const priceEl = document.getElementById('priceLine');
-      
       signalEl.innerHTML = '<div class="loading">Загрузка...</div>';
-      priceEl.innerHTML = '<div class="loading">Загрузка цен...</div>';
 
       try {
         // Получаем сигнал
-        const signalRes = await fetch(`${SERVER_URL}/signal?pair=${encodeURIComponent(pair)}&interval=5min`);
-        if (!signalRes.ok) throw new Error(`HTTP ${signalRes.status}: ${signalRes.statusText}`);
+        const signalRes = await fetchWithRetry(`${SERVER_URL}/signal?pair=${encodeURIComponent(pair)}&interval=5min`);
         const signalData = await signalRes.json();
         if (signalData.error) throw new Error(signalData.error);
 
@@ -137,31 +165,39 @@
         `;
 
         // Получаем историю
-        const histRes = await fetch(`${SERVER_URL}/history?pair=${encodeURIComponent(pair)}&interval=5min`);
-        if (!histRes.ok) throw new Error(`HTTP ${histRes.status}: ${histRes.statusText}`);
+        const histRes = await fetchWithRetry(`${SERVER_URL}/history?pair=${encodeURIComponent(pair)}&interval=5min`);
         const histData = await histRes.json();
         if (histData.error) throw new Error(histData.error);
 
-        // Берём последние 5 цен
-        const lastPrices = histData.values.slice(0, 5).map(bar => parseFloat(bar.close));
+        // Преобразуем данные для графика
+        const chartData = histData.values.map(bar => ({
+          time: Math.floor(new Date(bar.datetime.replace(' ', 'T') + 'Z').getTime() / 1000),
+          open: parseFloat(bar.open),
+          high: parseFloat(bar.high),
+          low: parseFloat(bar.low),
+          close: parseFloat(bar.close)
+        })).reverse();
 
-        // Формируем строку цен
-        const priceString = lastPrices.map(p => p.toFixed(4)).join(" → ");
-
-        priceEl.innerHTML = `<div class="price-line">${priceString}</div>`;
+        // Инициализируем график
+        if (!series) {
+          initChart();
+        }
+        series.setData(chartData);
 
       } catch (err) {
-        signalEl.innerHTML = `<div class="error">❌ Ошибка: ${err.message}</div>`;
-        priceEl.innerHTML = `<div class="error">❌ Не удалось загрузить цены</div>`;
-        console.error("Ошибка загрузки данных:", err);
+        signalEl.innerHTML = `<div class="error">❌ ${err.message}</div>`;
+        console.error("Ошибка:", err);
       }
     }
+
+    // Обработчик выбора пары
+    document.getElementById('pairSelector').addEventListener('change', loadData);
 
     // Загружаем при старте
     loadData();
 
-    // Автообновление каждые 5 минут
-    setInterval(loadData, 300000);
+    // Автообновление каждые 10 минут
+    setInterval(loadData, 600000);
   </script>
 </body>
 </html>
