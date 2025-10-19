@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RSI + График</title>
+  <title>RSI + Цена</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -30,12 +30,15 @@
       margin: 12px 0;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
-    #chart {
-      height: 300px;
-      width: 100%;
-      background: #fff;
-      border-radius: 12px;
-      overflow: hidden;
+    .price-line {
+      font-family: monospace;
+      font-size: 16px;
+      padding: 12px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      margin: 10px 0;
+      overflow-x: auto;
+      white-space: nowrap;
     }
     .signal-box {
       padding: 14px;
@@ -69,7 +72,7 @@
   </header>
 
   <div class="card">
-    <div id="chart">Загрузка графика...</div>
+    <div id="priceLine">Загрузка цен...</div>
   </div>
 
   <div class="card">
@@ -78,17 +81,15 @@
 
   <button onclick="loadData()">Обновить</button>
 
-  <!-- Библиотека для простого графика -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.time.min.js"></script>
-
   <script>
     // 🔴 ЗАМЕНИТЕ НА ВАШ URL!
     const SERVER_URL = "https://rsi-signal.onrender.com";
 
     async function loadData() {
       const signalEl = document.getElementById('signal');
+      const priceEl = document.getElementById('priceLine');
       signalEl.innerHTML = '<div class="loading">Загрузка...</div>';
+      priceEl.innerHTML = '<div class="loading">Загрузка цен...</div>';
 
       try {
         // Получаем сигнал
@@ -112,30 +113,17 @@
         const histData = await histRes.json();
         if (histData.error) throw new Error(histData.error);
 
-        // Преобразуем данные для графика
-        const chartData = histData.values.map(bar => [
-          new Date(bar.datetime).getTime(),
-          parseFloat(bar.close)
-        ]).reverse();
+        // Берём последние 5 цен
+        const lastPrices = histData.values.slice(0, 5).map(bar => parseFloat(bar.close));
 
-        // Создаём график
-        const container = document.getElementById('chart');
-        container.innerHTML = '';
+        // Формируем строку цен
+        const priceString = lastPrices.map(p => p.toFixed(4)).join(" → ");
 
-        $.plot(container, [{
-          data: chartData,
-          lines: { show: true, lineWidth: 2 },
-          points: { show: false },
-          color: '#1a73e8'
-        }], {
-          xaxis: { mode: "time", timeformat: "%H:%M" },
-          yaxis: { min: Math.min(...chartData.map(d => d[1])) - 0.001, max: Math.max(...chartData.map(d => d[1])) + 0.001 },
-          grid: { hoverable: true, clickable: true, backgroundColor: "#fff" },
-          legend: { show: false }
-        });
+        priceEl.innerHTML = `<div class="price-line">${priceString}</div>`;
 
       } catch (err) {
         signalEl.innerHTML = `<div class="error">❌ Ошибка: ${err.message}</div>`;
+        priceEl.innerHTML = `<div class="error">❌ Не удалось загрузить цены</div>`;
         console.error("Ошибка загрузки данных:", err);
       }
     }
