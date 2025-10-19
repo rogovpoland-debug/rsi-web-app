@@ -37,6 +37,11 @@
       border: 1px solid #ccc;
       border-radius: 8px;
       font-size: 16px;
+      appearance: none;
+      -webkit-appearance: none;
+      background: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23757575'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e") no-repeat right 0.75rem center/16px 12px;
+      background-color: #fff;
+      padding-right: 2.5rem;
     }
     .price-line {
       font-family: monospace;
@@ -80,7 +85,7 @@
   </header>
 
   <div class="card">
-    <select id="pairSelector" class="pair-selector" onchange="loadData()">
+    <select id="pairSelector" class="pair-selector">
       <option value="EUR/USD">EUR/USD</option>
       <option value="GBP/USD">GBP/USD</option>
       <option value="USD/JPY">USD/JPY</option>
@@ -102,6 +107,9 @@
   <script>
     // 🔴 ЗАМЕНИТЕ НА ВАШ RENDER URL!
     const SERVER_URL = "https://rsi-signal.onrender.com";
+
+    // Обработчик выбора пары
+    document.getElementById('pairSelector').addEventListener('change', loadData);
 
     async function loadData() {
       const pair = document.getElementById('pairSelector').value;
